@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="km" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>កម្មវិធីអាយកូមនិយាយចម្ងាយឆ្ងាយ (Khmer Walkie-Talkie)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Khmer (Kantumruy Pro) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        radio: {
+                            base: '#121820',
+                            panel: '#1e293b',
+                            accent: '#10b981',
+                            transmitting: '#ef4444',
+                            screen: '#0f172a'
+                        }
+                    },
+                    fontFamily: {
+                        khmer: ['Kantumruy Pro', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Kantumruy Pro', sans-serif;
+            background-color: #0b0f17;
+            color: #f1f5f9;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* LCD Glass Glow Effect */
+        .lcd-display {
+            background: linear-gradient(135deg, #061e14 0%, #030d08 100%);
+            box-shadow: inset 0 0 15px rgba(16, 185, 129, 0.2), 0 0 10px rgba(0, 0, 0, 0.8);
+            border: 2px solid #064e3b;
+            text-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+        }
+
+        /* PTT Dynamic Glow Button */
+        .ptt-btn-idle {
+            background: radial-gradient(circle, #27272a 0%, #09090b 100%);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.8), inset 0 2px 3px rgba(255,255,255,0.1);
+            border: 4px solid #3f3f46;
+        }
+
+        .ptt-btn-active {
+            background: radial-gradient(circle, #dc2626 0%, #991b1b 100%) !important;
+            box-shadow: 0 0 45px rgba(239, 68, 68, 0.8), inset 0 2px 5px rgba(255,255,255,0.4) !important;
+            border: 4px solid #f87171 !important;
+            transform: scale(0.97);
+        }
+
+        /* Audio Waveform Bar Animation */
+        .wave-bar {
+            transition: height 0.08s ease-in-out;
+        }
+
+        /* LED Indicator light */
+        .led-off { background-color: #334155; box-shadow: inset 0 1px 3px rgba(0,0,0,0.8); }
+        .led-tx { background-color: #ef4444; box-shadow: 0 0 12px #ef4444, inset 0 1px 2px #fca5a5; }
+        .led-rx { background-color: #10b981; box-shadow: 0 0 12px #10b981, inset 0 1px 2px #6ee7b7; }
+        .led-standby { background-color: #f59e0b; box-shadow: 0 0 10px #f59e0b, inset 0 1px 2px #fde68a; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-2 sm:p-4">
+
+    <!-- MAIN APP CONTAINER -->
+    <div class="w-full max-w-md bg-slate-900 border-2 border-slate-700 rounded-3xl shadow-2xl overflow-hidden flex flex-col justify-between relative">
+        
+        <!-- TOP ANTENNA & HARDWARE SIMULATION HEADER -->
+        <div class="bg-slate-950 px-6 py-3 border-b border-slate-800 flex justify-between items-center relative">
+            <!-- Antenna Visual -->
+            <div class="absolute -top-6 left-10 w-4 h-8 bg-slate-800 rounded-t border-t-2 border-slate-600"></div>
+            
+            <div class="flex items-center gap-2">
+                <i class="fa-solid font-bold fa-walkie-talkie text-emerald-400 text-lg"></i>
+                <span class="text-sm font-bold tracking-wider text-slate-200">អាយកូមឌីជីថល v2.4</span>
+            </div>
+
+            <!-- Hardware Status LEDs -->
+            <div class="flex items-center gap-3 bg-slate-900 px-3 py-1 rounded-full border border-slate-800">
+                <div class="flex items-center gap-1">
+                    <span id="led-tx" class="w-2.5 h-2.5 rounded-full led-off"></span>
+                    <span class="text-[10px] text-slate-400 font-bold">TX</span>
+                </div>
+                <div class="flex items-center gap-1">
+                    <span id="led-rx" class="w-2.5 h-2.5 rounded-full led-off"></span>
+                    <span class="text-[10px] text-slate-400 font-bold">RX</span>
+                </div>
+                <div class="flex items-center gap-1">
+                    <span id="led-power" class="w-2.5 h-2.5 rounded-full led-off"></span>
+                    <span class="text-[10px] text-slate-400 font-bold">PWR</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 1: JOIN / LOGIN SERVER PANEL -->
+        <div id="panel-join" class="p-5 flex flex-col gap-4">
+            <div class="text-center my-2">
+                <h2 class="text-xl font-bold text-emerald-400">ភ្ជាប់ទៅកាន់ប៉ុស្តិ៍សម្លេង</h2>
+                <p class="text-xs text-slate-400">បញ្ចូលឈ្មោះ និងលេខសម្គាល់ម៉ាស៊ីនបម្រើ (Server ID)</p>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">
+                        <i class="fa-solid fa-user text-emerald-400 mr-1"></i> ឈ្មោះអ្នកប្រើប្រាស់ (Username)
+                    </label>
+                    <input type="text" id="input-username" placeholder="ឧ. លីហួរ_007" 
+                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500 transition-colors">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">
+                        <i class="fa-solid fa-satellite-dish text-emerald-400 mr-1"></i> លេខប៉ុស្តិ៍ / Server ID
+                    </label>
+                    <input type="text" id="input-room" placeholder="ឧ. CAM-CHANNEL-1" value="CAM-CHANNEL-1" 
+                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500 transition-colors">
+                </div>
+
+                <!-- Distance Range Simulator Setting -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">
+                        <i class="fa-solid fa-route text-emerald-400 mr-1"></i> កំណត់ចម្ងាយសិប្បនិម្មិត: <span id="range-val" class="text-emerald-400 font-bold">1.5</span> គីឡូម៉ែត្រ
+                    </label>
+                    <input type="range" id="input-range" min="0.1" max="10" step="0.1" value="1.5" 
+                        class="w-full accent-emerald-500 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+            </div>
+
+            <button id="btn-connect" class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-slate-950 font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 text-base mt-2">
+                <i class="fa-solid fa-plug"></i> ភ្ជាប់ចូលប៉ុស្តិ៍ (Connect Channel)
+            </button>
+        </div>
+
+        <!-- VIEW 2: RADIO TRANSCEIVER MAIN INTERFACE (Hidden initially) -->
+        <div id="panel-radio" class="p-4 hidden flex-col gap-3">
+            
+            <!-- REALISTIC LCD SCREEN DISPLAY -->
+            <div class="lcd-display rounded-2xl p-3 flex flex-col justify-between text-emerald-400 relative overflow-hidden min-h-[140px]">
+                <!-- Top Status Line inside LCD -->
+                <div class="flex justify-between items-center text-[11px] font-mono border-b border-emerald-900/50 pb-1">
+                    <span id="display-room-id" class="font-bold tracking-wider uppercase"><i class="fa-solid fa-wifi text-[9px] mr-1"></i> CH: CAM-1</span>
+                    <span id="display-dist" class="text-emerald-300"><i class="fa-solid fa-location-arrow text-[9px]"></i> 1.5 KM</span>
+                </div>
+
+                <!-- Center Signal Indicator / Status Text -->
+                <div class="text-center my-2">
+                    <div id="display-status" class="text-lg font-bold tracking-wider text-emerald-300 uppercase">
+                        រង់ចាំ (STANDBY)
+                    </div>
+                    <div id="display-username" class="text-xs text-emerald-500/80 mt-0.5">
+                        អ្នកប្រើប្រាស់: -
+                    </div>
+                </div>
+
+                <!-- Audio Visualizer Waves inside Screen -->
+                <div id="visualizer-container" class="flex justify-center items-end gap-1 h-8 px-2">
+                    <!-- 16 Wave Bars -->
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                    <div class="wave-bar w-1.5 bg-emerald-500 rounded-t h-1"></div>
+                </div>
+
+                <!-- Bottom Signal Bar / Meter (S-Meter) -->
+                <div class="flex items-center gap-1 mt-1 pt-1 border-t border-emerald-900/40 text-[9px]">
+                    <span>S-METER:</span>
+                    <div class="flex-1 bg-emerald-950/80 h-1.5 rounded flex overflow-hidden gap-0.5 p-0.5">
+                        <div id="s-bar-1" class="h-full w-1/5 bg-emerald-600"></div>
+                        <div id="s-bar-2" class="h-full w-1/5 bg-emerald-600"></div>
+                        <div id="s-bar-3" class="h-full w-1/5 bg-emerald-600"></div>
+                        <div id="s-bar-4" class="h-full w-1/5 bg-yellow-500 opacity-30"></div>
+                        <div id="s-bar-5" class="h-full w-1/5 bg-red-500 opacity-30"></div>
+                    </div>
+                    <span id="signal-percent">60%</span>
+                </div>
+            </div>
+
+            <!-- ONLINE USER LIST IN CURRENT CHANNEL -->
+            <div class="bg-slate-950/60 rounded-xl p-2.5 border border-slate-800">
+                <div class="flex justify-between items-center text-xs text-slate-400 mb-2 px-1">
+                    <span><i class="fa-solid fa-users text-emerald-400 mr-1"></i> សមាជិកក្នុងប៉ុស្តិ៍</span>
+                    <span id="online-count" class="bg-emerald-950 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-800">1 នាក់</span>
+                </div>
+                <div id="user-list" class="max-h-20 overflow-y-auto space-y-1 pr-1 text-xs">
+                    <!-- User elements injected dynamically -->
+                </div>
+            </div>
+
+            <!-- PTT GIANT BUTTON SECTION -->
+            <div class="flex flex-col items-center justify-center my-2 relative">
+                <p class="text-[11px] text-slate-400 mb-2 flex items-center gap-1">
+                    <i class="fa-solid fa-keyboard"></i> ចុចជាប់លើប៊ូតុង ឬចុច <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-emerald-400">Spacebar</kbd> ដើម្បីនិយាយ
+                </p>
+
+                <!-- CIRCULAR GIANT PTT BUTTON -->
+                <button id="btn-ptt" class="ptt-btn-idle w-36 h-36 rounded-full flex flex-col items-center justify-center text-slate-200 transition-all active:scale-95 cursor-pointer touch-none select-none relative group">
+                    <i class="fa-solid fa-microphone text-3xl mb-1 text-emerald-400 group-hover:scale-110 transition-transform" id="ptt-icon"></i>
+                    <span class="text-sm font-bold tracking-wider text-slate-200" id="ptt-text">ចុចដើម្បីនិយាយ</span>
+                    <span class="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">PUSH TO TALK</span>
+                </button>
+            </div>
+
+            <!-- AUDIO & WIRED HEADSET SETTINGS EXPANDABLE -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs">
+                <div class="flex justify-between items-center cursor-pointer" id="toggle-audio-settings">
+                    <span class="font-semibold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-headphones-simple text-emerald-400"></i> កាសខ្សែ និងឧបករណ៍សម្លេង (Audio Devices)
+                    </span>
+                    <i class="fa-solid fa-chevron-down text-slate-500" id="arrow-settings"></i>
+                </div>
+
+                <div id="audio-settings-content" class="hidden space-y-2 mt-2 pt-2 border-t border-slate-800">
+                    <div>
+                        <label class="text-[10px] text-slate-400 block mb-0.5">ម៉ៃក្រូហ្វូន (Microphone Input):</label>
+                        <select id="select-mic" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-slate-200 focus:outline-none"></select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-slate-400 block mb-0.5">កាសស្តាប់ / ឧបករណ៍បំពងសម្លេង (Audio Output):</label>
+                        <select id="select-speaker" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-slate-200 focus:outline-none"></select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DISCONNECT BUTTON -->
+            <button id="btn-disconnect" class="w-full bg-slate-800 hover:bg-red-900/50 text-red-400 border border-slate-700 hover:border-red-700 py-2 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1">
+                <i class="fa-solid fa-power-off"></i> ចាកចេញពីប៉ុស្តិ៍ (Disconnect)
+            </button>
+        </div>
+
+        <!-- BOTTOM FOOTER -->
+        <div class="bg-slate-950 px-4 py-2 border-t border-slate-800 text-center text-[10px] text-slate-500">
+            ប្រព័ន្ធទំនាក់ទំនងសម្លេងតាមរលកធាតុអាកាសនិម្មិត (WebRTC PTT Simulation)
+        </div>
+    </div>
+
+    <!-- AUDIO ELEMENTS FOR SOUND EFFECTS & PEER RECEIVING -->
+    <audio id="remote-audio" autoplay></audio>
+
+    <script>
+        // GLOBAL APP STATE
+        const state = {
+            username: '',
+            roomId: '',
+            distanceKm: 1.5,
+            isConnected: false,
+            isTransmitting: false,
+            isReceiving: false,
+            mediaStream: null,
+            audioCtx: null,
+            analyser: null,
+            animFrameId: null,
+            spacePressed: false
+        };
+
+        // DOM ELEMENTS
+        const dom = {
+            panelJoin: document.getElementById('panel-join'),
+            panelRadio: document.getElementById('panel-radio'),
+            inputUsername: document.getElementById('input-username'),
+            inputRoom: document.getElementById('input-room'),
+            inputRange: document.getElementById('input-range'),
+            rangeVal: document.getElementById('range-val'),
+            btnConnect: document.getElementById('btn-connect'),
+            btnDisconnect: document.getElementById('btn-disconnect'),
+            btnPtt: document.getElementById('btn-ptt'),
+            pttIcon: document.getElementById('ptt-icon'),
+            pttText: document.getElementById('ptt-text'),
+            displayRoomId: document.getElementById('display-room-id'),
+            displayDist: document.getElementById('display-dist'),
+            displayStatus: document.getElementById('display-status'),
+            displayUsername: document.getElementById('display-username'),
+            onlineCount: document.getElementById('online-count'),
+            userList: document.getElementById('user-list'),
+            selectMic: document.getElementById('select-mic'),
+            selectSpeaker: document.getElementById('select-speaker'),
+            ledTx: document.getElementById('led-tx'),
+            ledRx: document.getElementById('led-rx'),
+            ledPower: document.getElementById('led-power'),
+            toggleAudioSettings: document.getElementById('toggle-audio-settings'),
+            audioSettingsContent: document.getElementById('audio-settings-content'),
+            arrowSettings: document.getElementById('arrow-settings'),
+            waveBars: document.querySelectorAll('.wave-bar'),
+            signalPercent: document.getElementById('signal-percent')
+        };
+
+        // SOUND EFFECT SYNTHESIZER (ROGER BEEP & STATIC NOISE)
+        function playSoundEffect(type) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                if (type === 'start_tx') {
+                    // Quick double beep on press
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
+                    osc.frequency.setValueAtTime(1200, ctx.currentTime + 0.05);
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.12);
+                } else if (type === 'end_tx') {
+                    // Classic Roger Beep
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1000, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.15);
+                }
+            } catch(e) {
+                console.log("Audio FX error:", e);
+            }
+        }
+
+        // INITIALIZE AUDIO DEVICES & PERMISSIONS
+        async function initAudioDevices() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                dom.selectMic.innerHTML = '';
+                dom.selectSpeaker.innerHTML = '';
+
+                devices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    if (device.kind === 'audioinput') {
+                        option.text = device.label || `ម៉ៃក្រូហ្វូន (${dom.selectMic.length + 1})`;
+                        dom.selectMic.appendChild(option);
+                    } else if (device.kind === 'audiooutput') {
+                        option.text = device.label || `កាស/បំពងសម្លេង (${dom.selectSpeaker.length + 1})`;
+                        dom.selectSpeaker.appendChild(option);
+                    }
+                });
+            } catch (err) {
+                console.error(" Error loading audio devices:", err);
+            }
+        }
+
+        // CONNECT TO CHANNEL
+        dom.btnConnect.addEventListener('click', async () => {
+            const username = dom.inputUsername.value.trim();
+            const roomId = dom.inputRoom.value.trim();
+
+            if (!username) {
+                alert('សូមបញ្ចូលឈ្មោះអ្នកប្រើប្រាស់!');
+                return;
+            }
+
+            state.username = username;
+            state.roomId = roomId || 'CAM-CHANNEL-1';
+            state.distanceKm = parseFloat(dom.inputRange.value);
+
+            try {
+                // Request Mic Access
+                state.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                await initAudioDevices();
+
+                state.isConnected = true;
+
+                // UI Switch to Radio Screen
+                dom.panelJoin.classList.add('hidden');
+                dom.panelRadio.classList.remove('hidden');
+                dom.panelRadio.classList.add('flex');
+
+                // Update Screen Text
+                dom.displayRoomId.innerHTML = `<i class="fa-solid fa-wifi text-[9px] mr-1"></i> CH: ${state.roomId}`;
+                dom.displayDist.innerHTML = `<i class="fa-solid fa-location-arrow text-[9px]"></i> ${state.distanceKm} KM`;
+                dom.displayUsername.innerText = `អ្នកប្រើប្រាស់: ${state.username}`;
+                
+                // LED Power On
+                dom.ledPower.className = "w-2.5 h-2.5 rounded-full led-standby";
+
+                // Update Signal Quality based on Distance Simulation
+                calculateSignalQuality(state.distanceKm);
+
+                // Render Active Users List
+                renderUserList();
+
+            } catch (err) {
+                alert('មិនអាចចូលប្រើប្រាស់ម៉ៃក្រូហ្វូនបានទេ! សូមពិនិត្យ Permission.');
+                console.error(err);
+            }
+        });
+
+        // DISCONNECT
+        dom.btnDisconnect.addEventListener('click', () => {
+            if (state.mediaStream) {
+                state.mediaStream.getTracks().forEach(track => track.stop());
+            }
+            state.isConnected = false;
+            stopTransmitting();
+
+            // LED Power Off
+            dom.ledPower.className = "w-2.5 h-2.5 rounded-full led-off";
+            dom.ledTx.className = "w-2.5 h-2.5 rounded-full led-off";
+            dom.ledRx.className = "w-2.5 h-2.5 rounded-full led-off";
+
+            dom.panelRadio.classList.add('hidden');
+            dom.panelRadio.classList.remove('flex');
+            dom.panelJoin.classList.remove('hidden');
+        });
+
+        // PTT TRANSMIT LOGIC
+        function startTransmitting() {
+            if (!state.isConnected || state.isTransmitting) return;
+
+            state.isTransmitting = true;
+            playSoundEffect('start_tx');
+
+            // UI updates for Transmission
+            dom.btnPtt.classList.remove('ptt-btn-idle');
+            dom.btnPtt.classList.add('ptt-btn-active');
+            dom.pttIcon.className = "fa-solid fa-tower-broadcast text-3xl mb-1 text-white animate-pulse";
+            dom.pttText.innerText = "កំពុងនិយាយ...";
+            
+            dom.displayStatus.innerText = "កំពុងផ្សាយ (TX)";
+            dom.displayStatus.className = "text-lg font-bold tracking-wider text-red-400 uppercase animate-pulse";
+
+            dom.ledTx.className = "w-2.5 h-2.5 rounded-full led-tx";
+
+            // Start Audio Visualizer
+            setupAudioAnalyser();
+        }
+
+        function stopTransmitting() {
+            if (!state.isTransmitting) return;
+
+            state.isTransmitting = false;
+            playSoundEffect('end_tx');
+
+            // UI reset
+            dom.btnPtt.classList.remove('ptt-btn-active');
+            dom.btnPtt.classList.add('ptt-btn-idle');
+            dom.pttIcon.className = "fa-solid fa-microphone text-3xl mb-1 text-emerald-400";
+            dom.pttText.innerText = "ចុចដើម្បីនិយាយ";
+
+            dom.displayStatus.innerText = "រង់ចាំ (STANDBY)";
+            dom.displayStatus.className = "text-lg font-bold tracking-wider text-emerald-300 uppercase";
+
+            dom.ledTx.className = "w-2.5 h-2.5 rounded-full led-off";
+
+            // Reset Waveform Bars
+            if (state.animFrameId) cancelAnimationFrame(state.animFrameId);
+            dom.waveBars.forEach(bar => bar.style.height = '4px');
+        }
+
+        // AUDIO VISUALIZER ANALYSER
+        function setupAudioAnalyser() {
+            if (!state.mediaStream) return;
+
+            state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const source = state.audioCtx.createMediaStreamSource(state.mediaStream);
+            state.analyser = state.audioCtx.createAnalyser();
+            state.analyser.fftSize = 32;
+            source.connect(state.analyser);
+
+            const bufferLength = state.analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            function drawVisualizer() {
+                if (!state.isTransmitting) return;
+
+                state.animFrameId = requestAnimationFrame(drawVisualizer);
+                state.analyser.getByteFrequencyData(dataArray);
+
+                dom.waveBars.forEach((bar, index) => {
+                    const val = dataArray[index % bufferLength] || 0;
+                    const height = Math.max(4, (val / 255) * 28);
+                    bar.style.height = `${height}px`;
+                });
+            }
+
+            drawVisualizer();
+        }
+
+        // PTT EVENT LISTENERS (Mouse & Touch Support)
+        dom.btnPtt.addEventListener('mousedown', startTransmitting);
+        dom.btnPtt.addEventListener('mouseup', stopTransmitting);
+        dom.btnPtt.addEventListener('mouseleave', stopTransmitting);
+
+        dom.btnPtt.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startTransmitting();
+        });
+        dom.btnPtt.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            stopTransmitting();
+        });
+
+        // SPACEBAR HARDWARE PTT TOGGLE
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && state.isConnected && !state.spacePressed && document.activeElement.tagName !== 'INPUT') {
+                e.preventDefault();
+                state.spacePressed = true;
+                startTransmitting();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space' && state.isConnected && state.spacePressed) {
+                e.preventDefault();
+                state.spacePressed = false;
+                stopTransmitting();
+            }
+        });
+
+        // RANGE DISTANCE INPUT SLIDER
+        dom.inputRange.addEventListener('input', (e) => {
+            dom.rangeVal.innerText = e.target.value;
+        });
+
+        // CALCULATE SIGNAL QUALITY (S-METER SIMULATION)
+        function calculateSignalQuality(km) {
+            let quality = Math.max(10, Math.min(100, Math.round(100 - (km * 8.5))));
+            dom.signalPercent.innerText = `${quality}%`;
+
+            // Active signal bars
+            const activeBars = Math.ceil((quality / 100) * 5);
+            for (let i = 1; i <= 5; i++) {
+                const bar = document.getElementById(`s-bar-${i}`);
+                if (i <= activeBars) {
+                    bar.classList.remove('opacity-30');
+                } else {
+                    bar.classList.add('opacity-30');
+                }
+            }
+        }
+
+        // RENDER ONLINE USER LIST
+        function renderUserList() {
+            const allowedUsers = [
+    "សុខា",
+    "សុភា",
+    "សុវណ្ណ",
+    "សុភ័ក្រ",
+    "សុវណ្ណារ៉ា",
+            ];
+
+            dom.userList.innerHTML = '';
+            dom.onlineCount.innerText = `${mockUsers.length} នាក់`;
+
+            mockUsers.forEach(u => {
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between bg-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-800";
+                item.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full ${u.self ? 'bg-emerald-400' : 'bg-slate-500'}"></span>
+                        <span class="${u.self ? 'font-bold text-emerald-300' : 'text-slate-300'}">${u.name}</span>
+                    </div>
+                    <span class="text-[10px] text-slate-500">${u.self ? 'ឧបករណ៍នេះ' : 'សកម្ម'}</span>
+                `;
+                dom.userList.appendChild(item);
+            });
+        }
+
+        // TOGGLE AUDIO SETTINGS PANEL
+        dom.toggleAudioSettings.addEventListener('click', () => {
+            dom.audioSettingsContent.classList.toggle('hidden');
+            dom.arrowSettings.classList.toggle('rotate-180');
+        });
+    </script>
+</body>
+</html>
